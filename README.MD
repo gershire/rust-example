@@ -6,3 +6,10 @@ To build a docker image, run
 ```
 docker build -t rust-example .
 ```
+
+## TODO
+* Move CLI to the separate bin
+* Document
+* Logging
+* Config
+* Unit tests

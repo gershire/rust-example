@@ -1,41 +1,56 @@
 use std::io;
-use rocksdb::{DB, Options};
+use std::sync::Arc;
+use rocksdb::DB;
 
-fn main() -> io::Result<()> {
+mod kafka_consumer;
+
+#[tokio::main]
+async fn main() {
+    let bootstrap_server = "localhost:9093";
+    let topic = "test-topic";
     let path = "./data";
-    let db = DB::open_default(path).unwrap();
-    help();
+    let db = Arc::new(DB::open_default(path).unwrap());
+
+    let mut rx = kafka_consumer::listen(bootstrap_server, topic).await;
+
+    let dbr = db.clone();
+    tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            handle_message(msg, dbr.as_ref()).await;
+        }
+    });
+
+    cli_loop(db.as_ref());
+}
+
+async fn handle_message(message: String, db: &rocksdb::DB) {
+    println!("Handling message {}", message);
+    let option = message.trim().find(" ");
+    match option {
+        Some(index) => {
+            let key = &message[0..index];
+            let value = &message[index..];
+            db.put(key, value);
+        }
+        None => println!("No key present!")
+    }
+}
+
+fn cli_loop(db: &rocksdb::DB) {
     let mut buffer = String::new();
     loop {
         buffer.clear();
-        io::stdin().read_line(&mut buffer)?;
+        io::stdin().read_line(&mut buffer);
         let split: Vec<&str> = buffer.trim().split(" ").collect();
         if let Some(command) = split.get(0) {
             match *command {
                 "help" => help(),
                 "quit" => break,
-                "put" => handle_put(&split, &db),
                 "get" => handle_get(&split, &db),
                 "delete" => handle_delete(&split, &db),
                 _ => println!("Unknown command: {}", buffer)
             }
         }
-    }
-    // Uncomment the next line to destroy the database on exit
-    // let _ = DB::destroy(&Options::default(), path);
-    Ok(())
-}
-
-fn handle_put(cmd: &Vec<&str>, db: &rocksdb::DB) {
-    if let Some(key) = cmd.get(1) {
-        if let Some(value) = cmd.get(2) {
-            println!("ADDING RECORD: {} -> {}", *key, *value);
-            db.put(*key, *value).unwrap();
-        } else {
-            println!("Value not specified")
-        }
-    } else {
-        println!("Key not specified")
     }
 }
 
@@ -63,7 +78,6 @@ fn handle_delete(cmd: &Vec<&str>, db: &rocksdb::DB) {
 
 fn help() {
     println!("This is the RocksDB example.");
-    println!("  put <key> <value> -- create or update a database record.");
     println!("  get <key>         -- get value from the database.");
     println!("  delete <key>      -- remove a record from the database.");
     println!("  help              -- list commands.");

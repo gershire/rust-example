@@ -19,5 +19,5 @@ RUN cargo build
 
 FROM debian
 WORKDIR /usr/src/example
-COPY --from=builder /usr/src/example/target/debug/rust-rocksdb-example /usr/src/example/
-CMD ["bash"]
+COPY --from=builder /usr/src/example/target/debug/* /usr/src/example/
+CMD ["./rust-rocksdb-example"]

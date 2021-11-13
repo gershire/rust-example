@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package example;
+
+service Vehicle {
+  rpc GetLocation (GetLocationRequest) returns (GetLocationResponse);
+}
+
+message GetLocationRequest {
+  string vehicleId = 1;
+}
+
+message GetLocationResponse {
+  bool success = 1;
+  string message = 2;
+  VehicleLocation vehicleLocation = 3;
+}
+
+message VehicleLocation {
+  string vehicleId = 1;
+  float longitude = 2;
+  float latitude = 3;
+}

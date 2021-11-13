@@ -1,17 +1,28 @@
 use std::io;
 use std::sync::Arc;
 use rocksdb::DB;
+use crate::data_model::Location;
+use crate::vehicle_service_grpc::VehicleService;
+use log::debug;
+use log::error;
 
+#[path = "configuration/init_config.rs"]
+mod init_config;
+#[path = "configuration/settings.rs"]
+mod settings;
 mod kafka_consumer;
+mod data_model;
+mod vehicle_service_grpc;
 
 #[tokio::main]
 async fn main() {
-    let bootstrap_server = "localhost:9093";
-    let topic = "test-topic";
-    let path = "./data";
+    let settings = init_config::load_config();
+    let path = settings.database.path;
     let db = Arc::new(DB::open_default(path).unwrap());
 
-    let mut rx = kafka_consumer::listen(bootstrap_server, topic).await;
+    let bootstrap_server = settings.kafka.bootstrap_server;
+    let topic = settings.kafka.topic;
+    let mut rx = kafka_consumer::listen(&bootstrap_server, &topic).await;
 
     let dbr = db.clone();
     tokio::spawn(async move {
@@ -20,66 +31,18 @@ async fn main() {
         }
     });
 
-    cli_loop(db.as_ref());
+    let addr = settings.grpc.socket_address.parse()
+        .expect("coudln't parse socket address");
+    VehicleService::start(db.clone(), addr).await;
 }
 
 async fn handle_message(message: String, db: &rocksdb::DB) {
-    println!("Handling message {}", message);
-    let option = message.trim().find(" ");
-    match option {
-        Some(index) => {
-            let key = &message[0..index];
-            let value = &message[index..];
-            db.put(key, value);
+    debug!("Handling message {}", message);
+    let res = serde_json::from_str::<data_model::Vehicle>(&*message);
+    match res {
+        Ok(vehicle) => {
+            db.put(vehicle.id, vehicle.location);
         }
-        None => println!("No key present!")
+        Err(e) => error!("Message handling error: {}", e)
     }
-}
-
-fn cli_loop(db: &rocksdb::DB) {
-    let mut buffer = String::new();
-    loop {
-        buffer.clear();
-        io::stdin().read_line(&mut buffer);
-        let split: Vec<&str> = buffer.trim().split(" ").collect();
-        if let Some(command) = split.get(0) {
-            match *command {
-                "help" => help(),
-                "quit" => break,
-                "get" => handle_get(&split, &db),
-                "delete" => handle_delete(&split, &db),
-                _ => println!("Unknown command: {}", buffer)
-            }
-        }
-    }
-}
-
-fn handle_get(cmd: &Vec<&str>, db: &rocksdb::DB) {
-    if let Some(key) = cmd.get(1) {
-        println!("GETTING RECORD: {}", *key);
-        match db.get(*key) {
-            Ok(Some(value)) => println!("the value is: {}", String::from_utf8(value).unwrap()),
-            Ok(None) => println!("value not found"),
-            Err(e) => println!("error: {}", e)
-        }
-    } else {
-        println!("Key not specified")
-    }
-}
-
-fn handle_delete(cmd: &Vec<&str>, db: &rocksdb::DB) {
-    if let Some(key) = cmd.get(1) {
-        println!("DELETING RECORD: {}", *key);
-        db.delete(*key).unwrap();
-    } else {
-        println!("Key not specified")
-    }
-}
-
-fn help() {
-    println!("This is the RocksDB example.");
-    println!("  get <key>         -- get value from the database.");
-    println!("  delete <key>      -- remove a record from the database.");
-    println!("  help              -- list commands.");
-    println!("  quit              -- exit the program.")
 }

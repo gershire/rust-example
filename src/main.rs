@@ -32,7 +32,7 @@ async fn main() {
     });
 
     let addr = settings.grpc.socket_address.parse()
-        .expect("coudln't parse socket address");
+        .expect("couldn't parse socket address");
     VehicleService::start(db.clone(), addr).await;
 }
 

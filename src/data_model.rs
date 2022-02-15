@@ -4,17 +4,21 @@ use rdkafka::message::ToBytes;
 use serde::de::{self, EnumAccess, Error, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
+
+/// Represents application-level error
 #[derive(Debug)]
 pub(crate) struct AppError {
     pub(crate) message: String,
 }
 
+/// Represents the Vehicle within the application
 #[derive(Deserialize, Debug)]
 pub(crate) struct Vehicle {
     pub(crate) id: String,
     pub(crate) location: Location,
 }
 
+/// Represents the Vehicle location
 #[derive(Debug)]
 pub(crate) struct Location {
     lng: f32,
@@ -22,6 +26,8 @@ pub(crate) struct Location {
     encoded: Vec<u8>,
 }
 
+/// The location is stored in the database as a byte-array
+/// and needs to be deserialized to a pair of floats
 impl<'de> Deserialize<'de> for Location {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
@@ -114,6 +120,7 @@ impl Display for Location {
 }
 
 impl Location {
+    /// Create a new Location from a pair of floats
     pub(crate) fn new(lng: f32, lat: f32) -> Location {
         let lng_bytes = lng.to_le_bytes();
         let lat_bytes = lat.to_le_bytes();
@@ -122,7 +129,9 @@ impl Location {
         Location { lng, lat, encoded }
     }
 
+    /// Create a new Location from an array of bytes
     pub(crate) fn from_bytes(bytes: Vec<u8>) -> Result<Location, AppError> {
+        /// An array of 8 bytes is expected (representing two floats)
         if bytes.len() < 8 {
             Err(AppError {
                 message: "Malformed data".to_string(),
@@ -135,22 +144,26 @@ impl Location {
         }
     }
 
+    /// Setter for the Location's longitude
     pub(crate) fn set_lng(&mut self, lng: f32) {
         let lng_bytes = lng.to_le_bytes();
         self.encoded.splice(..4, lng_bytes);
         self.lng = lng;
     }
 
+    /// Getter for the Location's longitude
     pub(crate) fn get_lng(&self) -> f32 {
         self.lng
     }
 
+    /// Setter for the Location's latitude
     pub(crate) fn set_lat(&mut self, lat: f32) {
         let lat_bytes = lat.to_le_bytes();
         self.encoded.splice(4.., lat_bytes);
         self.lat = lat;
     }
 
+    /// Getter for the Location's latitude
     pub(crate) fn get_lat(&self) -> f32 {
         self.lat
     }

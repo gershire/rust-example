@@ -1,34 +1,33 @@
 version: "3"
 
-networks:
-  example:
-    driver: bridge
-
 services:
-  application:
-    image: rust-example
-    container_name: rust_app
+  rust-example:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    container_name: rust-example
+    restart: always
+    ports:
+      - '50051:50051'
     depends_on:
       - kafka
 
   zookeeper:
-    image: bitnami/zookeeper
-    ports:
-      - "2181:2181"
+    image: 'bitnami/zookeeper:latest'
+    container_name: zookeeper
+    restart: always
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
 
   kafka:
-    image: bitnami/kafka
+    image: 'bitnami/kafka:latest'
+    container_name: kafka
+    restart: always
     ports:
-      - "9092:9092"
+      - '9092:9092'
     environment:
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
       - ALLOW_PLAINTEXT_LISTENER=yes
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,EXTERNAL:PLAINTEXT
-      - KAFKA_CFG_LISTENERS=CLIENT://:9092,EXTERNAL://:9093
-      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka:9092,EXTERNAL://localhost:9093
-      - KAFKA_INTER_BROKER_LISTENER_NAME=CLIENT
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
     depends_on:
       - zookeeper
